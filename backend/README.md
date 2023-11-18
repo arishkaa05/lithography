@@ -4,7 +4,7 @@
 
 Для запуска проекта cклонируйте репозиторий проекта на свой локальный компьютер:
    ```
-   git clone https://github.com/arishkaa05/system.git
+   git clone https://github.com/arishkaa05/lithography.git
    ```
 
 ### Бекенд
