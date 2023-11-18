@@ -1,0 +1,32 @@
+
+version: "3.9"
+
+services:
+  app:
+    container_name: app
+    build: .
+    image: lithography
+    ports:
+      - "8081:8081"
+    environment:
+      - PG_DB=lithography
+      - PG_USER=postgres
+      - PG_PASSWORD=postgres
+      - PG_HOST=data_db
+    depends_on:
+      - data_db
+  
+  data_db:
+    container_name: data_db
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=lithography
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - node_db_data:/var/lib/postgresql/data
+
+volumes:
+  node_db_data: {}
