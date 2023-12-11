@@ -1,0 +1,43 @@
+{
+  "name": "client_system",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "2gis-maps": "^3.7.3",
+    "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "daisyui": "^3.9.4",
+    "flowbite": "^2.0.0",
+    "flowbite-vue": "^0.1.0",
+    "pinia": "^2.1.7",
+    "prettier": "^3.0.3",
+    "swiper": "^11.0.3",
+    "uuid": "^9.0.1",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.5",
+    "vue3-popper": "^1.5.0",
+    "vue3-toastify": "^0.1.14"
+  },
+  "devDependencies": {
+    "@rushstack/eslint-patch": "^1.5.1",
+    "@types/bcryptjs": "^2.4.5",
+    "@vitejs/plugin-vue": "^4.2.3",
+    "@vue/eslint-config-prettier": "^8.0.0",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.52.0",
+    "eslint-plugin-vue": "^9.18.1",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vue-tsc": "^1.8.5"
+  }
+}

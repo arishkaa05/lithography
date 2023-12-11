@@ -1,0 +1,22 @@
+.swiper-button-next,
+.swiper-button-prev {
+  background-color: #02356f77;
+  right:10px;
+  color: #ffffff !important;opacity: 0; 
+  transition: opacity 0.5s; 
+  border-radius: 5px;
+}
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  background-color: #02356f;
+}
+
+.swiper-button-next:after,.swiper-button-prev:after {
+  
+  font-size: 16px;
+}
+
+.mySwiper:hover .swiper-button-prev,
+.mySwiper:hover .swiper-button-next {
+  opacity: 1; 
+}
