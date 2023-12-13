@@ -1,10 +1,17 @@
 <template>
 	<h2>{{ message }}</h2>
+	<canvas @mousedown="startPainting" @mouseup="finishedPainting" @mousemove="draw" @mouseleave="finishedPainting" id="canvas"></canvas>
+	
 	<div class="color-picker">
-			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="changeColor(color)"></div>
+		<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="changeColor(color)"></div>
 	</div>
-	<canvas @mousedown="startPainting" @mouseup="finishedPainting" @mousemove="draw" id="canvas"></canvas>
-	<a class="clear-button" @click.prevent="clearCanvas">Clear Canvas</a>
+	<div class="tool-picker">
+		
+		<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
+		<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
+		<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
+	</div>
+	<a class="clear-button">LONG BUTTON</a>
 </template>
 
 <script setup lang="ts">
@@ -15,34 +22,79 @@ const canvas = ref(null);
 const ctx = ref(null);
 const colors = ref(["#000000", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]);
 const changeColor = (color) => {
-	ctx.value.strokeStyle = color;
+	if(eraserMode.value==false){
+		ctx.value.strokeStyle = color;
+		ctx.value.fillStyle = color;
+	}
+	lastColor.value = color;
+};
+
+const rectangleMode = ref(false);
+const rectangleModeText = ref('🖌️');
+const toggleRectangleMode = () => {
+	rectangleMode.value = !rectangleMode.value;
+	rectangleModeText.value = rectangleMode.value == true?'🟥':'🖌️';
+};
+
+const eraserMode = ref(false);
+const eraserModeText = ref('🔳');
+const lastColor = ref("#000000");
+const toggleEraserMode = () => {
+	eraserMode.value = !eraserMode.value;
+	eraserModeText.value = eraserMode.value == true?'🔲':'🔳';
+	ctx.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
+	ctx.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
 };
 
 const clearCanvas = () => {
 	ctx.value.clearRect(0, 0, canvas.value.width, canvas.value.height);
 };
 
+const rectStartX=ref(0);
+const rectStartY=ref(0);
+
 const startPainting = (e) => {
 	painting.value = true;
-	draw(e);
+	if(rectangleMode.value==true){
+		rectStartX.value = e.clientX - canvas.value.offsetLeft;
+		rectStartY.value = e.clientY - canvas.value.offsetTop;
+	}
+	else{
+		draw(e);
+	}
 };
 
 const finishedPainting = () => {
 	painting.value = false;
-	ctx.value.beginPath();
+	if(rectangleMode.value==true){
+
+	}
+	else{
+		ctx.value.beginPath();
+	}
 };
 
 const draw = (e) => {
 	if (!painting.value) return;
-
 	ctx.value.lineWidth = 10;
 	ctx.value.lineCap = "round";
+	if(rectangleMode.value==true){
+		const newMouseX = e.clientX - canvas.value.offsetLeft;
+		const newMouseY = e.clientY - canvas.value.offsetTop;
 
-	ctx.value.lineTo(e.clientX - canvas.value.offsetLeft, e.clientY - canvas.value.offsetTop);
-	ctx.value.stroke();
+		const rectWidth = newMouseX - rectStartX.value;
+		const rectHeight = newMouseY - rectStartY.value;
 
-	ctx.value.beginPath();
-	ctx.value.moveTo(e.clientX - canvas.value.offsetLeft, e.clientY - canvas.value.offsetTop);
+		ctx.value.clearRect(0,0,canvas.value.width,canvas.value.height)
+		ctx.value.fillRect(rectStartX.value,rectStartY.value,rectWidth,rectHeight);
+	}
+	else{
+		ctx.value.lineTo(e.clientX - canvas.value.offsetLeft, e.clientY - canvas.value.offsetTop);
+		ctx.value.stroke();
+
+		ctx.value.beginPath();
+		ctx.value.moveTo(e.clientX - canvas.value.offsetLeft, e.clientY - canvas.value.offsetTop);
+	}
 };
 
 onMounted(() => {
@@ -51,6 +103,7 @@ onMounted(() => {
 
 	// Set default stroke color
 	ctx.value.strokeStyle = colors.value[0];
+	ctx.value.fillStyle = colors.value[0];
 
 	// Resize canvas
 	canvas.value.height = window.innerHeight * 0.6;
@@ -104,12 +157,40 @@ canvas {
 	border-radius: 50%;
 }
 
+/* tool bar */
+.tool-picker {
+	display: flex;
+	justify-content: center;
+	margin-top: 1rem;
+}
+
+/* tool button */
+.tool-button {
+	display: block;
+	margin-left: 3px;
+	margin-right: 3px;
+	padding: 3px;
+	background-color: #fff;
+	border-width: 2px;
+	border-color: #333;
+	border-radius: 5px;
+	color: #fff;
+	text-align: center;
+	cursor: pointer;
+	text-decoration: none;
+	font-weight: bold;
+}
+
+.tool-button:hover {
+	background-color: #eee;
+}
+
 .color-picker {
 	display: flex;
 	justify-content: center;
-	margin-bottom: 1rem;
+	margin-top: 1rem;
 }
-
+/* clear button */
 .clear-button {
 	display: block;
 	margin: 1rem auto;
