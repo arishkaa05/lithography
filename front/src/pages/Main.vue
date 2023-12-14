@@ -14,8 +14,10 @@
 		<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
 		<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
 		<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
+		<a class="tool-button" @click.prevent="writeFile">📥</a>
+		<a class="tool-button" @click.prevent="loadFile">📤</a>
 	</div>
-	<!-- <a class="clear-button">LONG BUTTON</a> -->
+	<!-- <a class="test-user-button" @click.prevent="testUser">LONG BUTTON</a> -->
 </template>
 
 <script setup lang="ts">
@@ -155,6 +157,28 @@ const drawing = (e) => {
 	}
 };
 
+// const testUser = (e) => {
+
+// }
+
+const tmpFile = ref("");
+const writeFile = (e) => {
+	var canvasContents = canvas1.value.toDataURL(); // a data URL of the current canvas image
+	var data = { image: canvasContents, date: Date.now() };
+	tmpFile.value = JSON.stringify(data);
+}
+const loadFile = (e) => {
+	var data = JSON.parse(tmpFile.value);
+	var image = new Image();
+	image.onload = function () {
+		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
+		ctx1.value.drawImage(image, 0, 0); // draw the new image to the screen
+	}
+	image.src = data.image; // data.image contains the data URL
+}
+
+
+
 onMounted(() => {
 	wrapper.value = document.getElementById("wrapper");
 	offsetX.value += wrapper.value.offsetLeft;
@@ -265,7 +289,6 @@ canvas {
 	display: block;
 	margin-left: 3px;
 	margin-right: 3px;
-	padding: 3px;
 	background-color: #fff;
 	border-width: 2px;
 	border-color: #333;
@@ -275,6 +298,7 @@ canvas {
 	cursor: pointer;
 	text-decoration: none;
 	font-weight: bold;
+	font-size:24px;
 }
 
 .tool-button:hover {
@@ -287,7 +311,7 @@ canvas {
 	margin-top: 1rem;
 }
 /* clear button */
-.clear-button {
+.test-user-button {
 	display: block;
 	margin: 1rem auto;
 	padding: 0.5rem 1rem;
@@ -300,7 +324,7 @@ canvas {
 	font-weight: bold;
 }
 
-.clear-button:hover {
+.test-user-button:hover {
 	background-color: #444;
 }
 
