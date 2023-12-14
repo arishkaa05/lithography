@@ -2,6 +2,7 @@
 	<h2>{{ message }}</h2>
 	
 	<div id="wrapper">
+		<canvas id="backCanvas"></canvas>
 		<canvas @mousedown="startPainting" @mouseup="finishedPainting" @mousemove="drawing" id="canvas1"></canvas>
 		<canvas @mouseup="finishedPaintingRect" @mouseout="finishedPaintingRect" @mousemove="drawingRect" id="canvas2"></canvas>
 	</div>
@@ -19,15 +20,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-const message = ref("Drawing App");
+const message = ref("Чертеж схемы");
 const painting = ref(false);
 const wrapper = ref(null);
+const backCanvas = ref(null);
 const canvas1 = ref(null);
 const canvas2 = ref(null);
 const offsetX = ref(0);
 const offsetY = ref(0);
 const scaleX = ref(1);
 const scaleY = ref(1);
+const ctxBack = ref(null);
 const ctx1 = ref(null);
 const ctx2 = ref(null);
 const colors = ref(["#000000", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]);
@@ -111,11 +114,21 @@ const finishedPainting = (e) => {
 };
 
 const drawRect = (toX,toY,context) => {
+	ctxBack.value.lineWidth = 2;
+	ctx1.value.lineWidth = 5;
+	ctx1.value.lineCap = "round";
+	ctx2.value.lineWidth = 5;
+	ctx2.value.lineCap = "round";
 	context.value.beginPath();
 	context.value.fillRect(rectStartX.value,rectStartY.value,toX-rectStartX.value,toY-rectStartY.value);
 	context.value.stroke();
 }
 const drawLine = (toX,toY,context) => {
+	ctxBack.value.lineWidth = 2;
+	ctx1.value.lineWidth = 5;
+	ctx1.value.lineCap = "round";
+	ctx2.value.lineWidth = 5;
+	ctx2.value.lineCap = "round";
 	context.value.lineTo(toX, toY);
 	context.value.stroke();
 
@@ -126,10 +139,6 @@ const drawLine = (toX,toY,context) => {
 const drawingRect = (e) => {
 	if (!painting.value) return;
 	if(rectangleMode.value==true){
-	ctx1.value.lineWidth = 5;
-	ctx1.value.lineCap = "round";
-	ctx2.value.lineWidth = 5;
-	ctx2.value.lineCap = "round";
 	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
 	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
 		ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
@@ -139,10 +148,6 @@ const drawingRect = (e) => {
 
 const drawing = (e) => {
 	if (!painting.value) return;
-	ctx1.value.lineWidth = 5;
-	ctx1.value.lineCap = "round";
-	ctx2.value.lineWidth = 5;
-	ctx2.value.lineCap = "round";
 	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
 	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
 	if(rectangleMode.value==false){
@@ -154,16 +159,19 @@ onMounted(() => {
 	wrapper.value = document.getElementById("wrapper");
 	offsetX.value += wrapper.value.offsetLeft;
 	offsetY.value += wrapper.value.offsetTop;
+
+	backCanvas.value = document.getElementById("backCanvas");
+	ctxBack.value = backCanvas.value.getContext("2d");
+
 	canvas1.value = document.getElementById("canvas1");
 	offsetX.value += canvas1.value.offsetLeft;
 	offsetY.value += canvas1.value.offsetTop;
 	scaleX.value = canvas1.value.getBoundingClientRect().width/500;
 	scaleY.value = canvas1.value.getBoundingClientRect().height/500;
 	ctx1.value = canvas1.value.getContext("2d");
+
 	canvas2.value = document.getElementById("canvas2");
 	ctx2.value = canvas2.value.getContext("2d");
-	ctx1.value.translate(0.5,0.5);
-	ctx2.value.translate(0.5,0.5);
 
 	// Set default stroke color
 	ctx1.value.strokeStyle = colors.value[0];
@@ -172,11 +180,34 @@ onMounted(() => {
 	ctx2.value.fillStyle = colors.value[0];
 
 	canvas2.value.style.left = "-200%";
+
+	backCanvas.value.width = 500*scaleX.value/scaleY.value;
 	canvas1.value.width = 500*scaleX.value/scaleY.value;
 	canvas2.value.width = 500*scaleX.value/scaleY.value;
+	backCanvas.value.height = 500;
 	canvas1.value.height = 500;
 	canvas2.value.height = 500;
+
 	scaleX.value = canvas1.value.getBoundingClientRect().width/canvas1.value.width;
+
+	const step = 20;
+	const n = Math.floor(backCanvas.value.width/step)+1;
+	for (let i = 0; i < n; i++) {
+		ctxBack.value.setLineDash([i%5!=0?step/10:step/2]);
+		ctxBack.value.strokeStyle = i%5!=0?"#aaaaaa":"#888888";
+		drawLine(step*i,0-step/4,ctxBack);
+		drawLine(step*i,500,ctxBack);
+		ctxBack.value.beginPath();
+	}
+	
+	const m = Math.floor(backCanvas.value.height/step)+1;
+	for (let i = 0; i < m; i++) {
+		ctxBack.value.setLineDash([i%5!=0?step/10:step/2]);
+		ctxBack.value.strokeStyle = i%5!=0?"#aaaaaa":"#888888";
+		drawLine(0-step/4,step*i,ctxBack);
+		drawLine(backCanvas.value.width,step*i,ctxBack);
+		ctxBack.value.beginPath();
+	}
 });
 </script>
 
@@ -277,6 +308,13 @@ canvas {
 	position:relative;
 	width:100%;
 	height:400px;
+}
+#backCanvas{
+	position:absolute; top:0px; left:0px;
+	border:1px solid black;
+	background-color: #fff;
+	width:100%;
+	height:100%;
 }
 #canvas1{
 	position:absolute; top:0px; left:0px;
