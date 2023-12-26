@@ -1,21 +1,20 @@
 <template>
-	<h2>{{ message }}</h2>
-	
 	<div id="wrapper">
 		<canvas id="backCanvas"></canvas>
 		<canvas @mousedown="startPainting" @mouseup="finishedPainting" @mousemove="drawing" id="canvas1"></canvas>
 		<canvas @mouseup="finishedPaintingRect" @mouseout="finishedPaintingRect" @mousemove="drawingRect" id="canvas2"></canvas>
 	</div>
-	<div class="color-picker">
-		<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="changeColor(color)"></div>
-	</div>
-	<div class="tool-picker">
-		
-		<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
-		<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
-		<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
-		<a class="tool-button" @click.prevent="writeFile">📥</a>
-		<a class="tool-button" @click.prevent="loadFile">📤</a>
+	<div class="toolbar">
+		<div class="color-picker">
+			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="changeColor(color)"></div>
+		</div>
+		<div class="tool-picker">
+			<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
+			<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
+			<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
+			<a class="tool-button" @click.prevent="writeFile">📥</a>
+			<a class="tool-button" @click.prevent="loadFile">📤</a>
+		</div>
 	</div>
 	<!-- <a class="test-user-button" @click.prevent="testUser">LONG BUTTON</a> -->
 </template>
@@ -32,6 +31,8 @@ const offsetX = ref(0);
 const offsetY = ref(0);
 const scaleX = ref(1);
 const scaleY = ref(1);
+const pixelsX = ref(500);
+const pixelsY = ref(500);
 const ctxBack = ref(null);
 const ctx1 = ref(null);
 const ctx2 = ref(null);
@@ -49,6 +50,66 @@ const lastColor = ref("#000000");
 const rectStartX=ref(0);
 const rectStartY=ref(0);
 
+class Point{
+	x = 0;
+	y = 0;
+	constructor(x_,y_){
+		this.x=x_;
+		this.y=y_;
+	}
+}
+
+class VectRect{
+	point1 = new Point(0,0);
+	point2 = new Point(0,0);
+	color = "#000000";
+	zOrder = 0;
+	setPoint1(point){
+		this.point1 = point;
+	}
+	setPoint2(point){
+		this.point2 = point;
+	}
+	setColor(color){
+		this.color = color;
+	}
+	setZOrder(zOrder){
+		this.zOrder = zOrder;
+	}
+	constructor(point1,point2,color,zOrder){
+		this.point1 = point1;
+		this.point2 = point2;
+		this.color = color;
+		this.zOrder = zOrder;
+	}
+}
+
+class VectRects{
+	public vectRects;
+	constructor(){
+		this.vectRects = [];
+	}
+	newVectRect(point1,point2,color,zOrder){
+		let vr = new VectRect(point1,point2,color,zOrder);
+		this.vectRects.push(vr);
+	}
+}
+
+const drawVectRect = (vectRect) => {
+	changeColor(vectRect.color);
+	ctxBack.value.lineWidth = 2;
+	ctx1.value.lineWidth = 5;
+	ctx1.value.lineCap = "round";
+	ctx2.value.lineWidth = 5;
+	ctx2.value.lineCap = "round";
+	var width = vectRect.point2.x-vectRect.point1.x;
+	var height = vectRect.point2.y-vectRect.point1.y;
+	ctx1.value.beginPath();
+	ctx1.value.fillRect(vectRect.point1.x,vectRect.point1.y,width,height);
+	ctx1.value.stroke();
+	
+}
+
 enum drawModeShape{
 	brush = "BRUSH",
 	square = "SQUARE",
@@ -63,6 +124,10 @@ const changeColor = (color) => {
 			ctx2.value.strokeStyle = color;
 			ctx2.value.fillStyle = color;
 		}
+	}
+	else{
+		ctx1.value.strokeStyle = color;
+		ctx1.value.fillStyle = color;
 	}
 	lastColor.value = color;
 };
@@ -90,6 +155,9 @@ const clearCanvas = () => {
 	if(isRasterMode.value){
 		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
 		ctx2.value.clearRect(0, 0, canvas2.value.width, canvas2.value.height);
+	}
+	else{
+		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
 	}
 };
 
@@ -216,6 +284,9 @@ const loadFile = (e) => {
 
 
 onMounted(() => {
+	pixelsX.value = 1400;
+	pixelsY.value = 600;
+
 	// Init canvases
 	wrapper.value = document.getElementById("wrapper");
 	offsetX.value += wrapper.value.offsetLeft;
@@ -227,8 +298,8 @@ onMounted(() => {
 	canvas1.value = document.getElementById("canvas1");
 	offsetX.value += canvas1.value.offsetLeft;
 	offsetY.value += canvas1.value.offsetTop;
-	scaleX.value = canvas1.value.getBoundingClientRect().width/500;
-	scaleY.value = canvas1.value.getBoundingClientRect().height/500;
+	scaleX.value = canvas1.value.getBoundingClientRect().width/pixelsX.value;
+	scaleY.value = canvas1.value.getBoundingClientRect().height/pixelsY.value;
 	ctx1.value = canvas1.value.getContext("2d");
 
 	canvas2.value = document.getElementById("canvas2");
@@ -243,12 +314,12 @@ onMounted(() => {
 	// Resize canvases
 	canvas2.value.style.left = "-200%";
 
-	backCanvas.value.width = 500*scaleX.value/scaleY.value;
-	canvas1.value.width = 500*scaleX.value/scaleY.value;
-	canvas2.value.width = 500*scaleX.value/scaleY.value;
-	backCanvas.value.height = 500;
-	canvas1.value.height = 500;
-	canvas2.value.height = 500;
+	backCanvas.value.width = pixelsX.value*scaleX.value/scaleY.value;
+	canvas1.value.width = pixelsX.value*scaleX.value/scaleY.value;
+	canvas2.value.width = pixelsX.value*scaleX.value/scaleY.value;
+	backCanvas.value.height = pixelsY.value;
+	canvas1.value.height = pixelsY.value;
+	canvas2.value.height = pixelsY.value;
 
 	scaleX.value = canvas1.value.getBoundingClientRect().width/canvas1.value.width;
 
@@ -259,7 +330,7 @@ onMounted(() => {
 		ctxBack.value.setLineDash([i%5!=0?step/10:step/2]);
 		ctxBack.value.strokeStyle = i%5!=0?"#aaaaaa":"#888888";
 		drawLine(step*i,0-step/4,ctxBack);
-		drawLine(step*i,500,ctxBack);
+		drawLine(step*i,pixelsX.value,ctxBack);
 		ctxBack.value.beginPath();
 	}
 	
@@ -271,31 +342,34 @@ onMounted(() => {
 		drawLine(backCanvas.value.width,step*i,ctxBack);
 		ctxBack.value.beginPath();
 	}
+
+	let vrs = new VectRects();
+
+	vrs.newVectRect(new Point(20,20),new Point(100,100),"#ff00ff",0);
+	vrs.newVectRect(new Point(40,40),new Point(140,140),"#ffff00",1);
+
+	clearCanvas();
+	vrs.vectRects.forEach(vr => {
+		drawVectRect(vr);
+	});
 });
 </script>
 
 <style>
-* {
-	box-sizing: border-box;
-}
 
 body {
-	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-	display: flex;
+	display:flex;
 	justify-content: center;
-	align-items: center;
-	height: 100vh;
-	margin: 0;
+	width:100%;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 	background-color: #f0f0f0;
 }
 
 #app {
-	width: 90%;
-	max-width: 1200px;
+	display:flex;
+	justify-content: center;
+	width:100%;
 	background-color: #fff;
-	padding: 2rem;
-	border-radius: 1rem;
-	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 h2 {
@@ -308,7 +382,6 @@ canvas {
 }
 
 .color-box {
-	display: inline-block;
 	width: 20px;
 	height: 20px;
 	margin: 0 5px;
@@ -319,13 +392,11 @@ canvas {
 /* tool bar */
 .tool-picker {
 	display: flex;
-	justify-content: center;
 	margin-top: 1rem;
 }
 
 /* tool button */
 .tool-button {
-	display: block;
 	margin-left: 3px;
 	margin-right: 3px;
 	background-color: #fff;
@@ -346,12 +417,10 @@ canvas {
 
 .color-picker {
 	display: flex;
-	justify-content: center;
-	margin-top: 1rem;
+	margin-top: 2rem;
 }
 /* clear button */
 .test-user-button {
-	display: block;
 	margin: 1rem auto;
 	padding: 0.5rem 1rem;
 	background-color: #333;
@@ -367,10 +436,19 @@ canvas {
 	background-color: #444;
 }
 
-#wrapper{
-	position:relative;
+
+.toolbar {
+	justify-content: center;
+	display: flex;
+	margin:20px;
 	width:100%;
-	height:400px;
+}
+
+#wrapper{
+	margin:20px;
+	position:relative;
+	width:1400px;
+	height:600px;
 }
 #backCanvas{
 	position:absolute; top:0px; left:0px;
@@ -387,7 +465,7 @@ canvas {
 }
 #canvas2{
 	position:absolute; top:0px; left:0px;
-	/* border:1px solid red; */
+	border:1px solid black;
 	width:100%;
 	height:100%;
 }
