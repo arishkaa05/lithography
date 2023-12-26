@@ -36,95 +36,126 @@ const ctxBack = ref(null);
 const ctx1 = ref(null);
 const ctx2 = ref(null);
 const colors = ref(["#000000", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]);
-const changeColor = (color) => {
-	if(eraserMode.value==false){
-		ctx1.value.strokeStyle = color;
-		ctx1.value.fillStyle = color;
-		ctx2.value.strokeStyle = color;
-		ctx2.value.fillStyle = color;
-	}
-	lastColor.value = color;
-};
+
+const isRasterMode = ref(false);
 
 const rectangleMode = ref(false);
 const rectangleModeText = ref('🖌️');
-const toggleRectangleMode = () => {
-	rectangleMode.value = !rectangleMode.value;
-	rectangleModeText.value = rectangleMode.value == true?'🟥':'🖌️';
-};
 
 const eraserMode = ref(false);
 const eraserModeText = ref('🔳');
 const lastColor = ref("#000000");
-const toggleEraserMode = () => {
-	eraserMode.value = !eraserMode.value;
-	eraserModeText.value = eraserMode.value == true?'🔲':'🔳';
-	ctx1.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
-	ctx1.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
-	ctx2.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
-	ctx2.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
-	ctx1.value.globalCompositeOperation = eraserMode.value == true?"destination-out":"source-over";
-};
-
-const clearCanvas = () => {
-	ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
-	ctx2.value.clearRect(0, 0, canvas2.value.width, canvas2.value.height);
-};
 
 const rectStartX=ref(0);
 const rectStartY=ref(0);
 
+enum drawModeShape{
+	brush = "BRUSH",
+	square = "SQUARE",
+	line = "LINE"
+}
+
+const changeColor = (color) => {
+	if(isRasterMode.value){
+		if(eraserMode.value==false){
+			ctx1.value.strokeStyle = color;
+			ctx1.value.fillStyle = color;
+			ctx2.value.strokeStyle = color;
+			ctx2.value.fillStyle = color;
+		}
+	}
+	lastColor.value = color;
+};
+
+const toggleRectangleMode = () => {
+	if(isRasterMode.value){
+		rectangleMode.value = !rectangleMode.value;
+		rectangleModeText.value = rectangleMode.value == true?'🟥':'🖌️';
+	}
+};
+
+const toggleEraserMode = () => {
+	if(isRasterMode.value){
+		eraserModeText.value = eraserMode.value == true?'🔲':'🔳';
+		ctx1.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
+		ctx1.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
+		ctx2.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
+		ctx2.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
+		ctx1.value.globalCompositeOperation = eraserMode.value == true?"destination-out":"source-over";
+		eraserMode.value = !eraserMode.value;
+	}
+};
+
+const clearCanvas = () => {
+	if(isRasterMode.value){
+		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
+		ctx2.value.clearRect(0, 0, canvas2.value.width, canvas2.value.height);
+	}
+};
+
 const startPaintingRect = (e) => {
-	if(rectangleMode.value==true){
-		rectStartX.value = (e.clientX - offsetX.value)/scaleX.value;
-		rectStartY.value = (e.clientY - offsetY.value)/scaleY.value;
-		ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
-		canvas2.value.style.left = "0%";
-		painting.value = true;
+	if(isRasterMode.value){
+		if(rectangleMode.value==true){
+			rectStartX.value = (e.clientX - offsetX.value)/scaleX.value;
+			rectStartY.value = (e.clientY - offsetY.value)/scaleY.value;
+			ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
+			canvas2.value.style.left = "0%";
+			painting.value = true;
+		}
 	}
 }
 
 const startPainting = (e) => {
-	startPaintingRect(e);
-	if(rectangleMode.value==false){
-		painting.value = true;
-		drawing(e);
+	if(isRasterMode.value){
+		startPaintingRect(e);
+		if(rectangleMode.value==false){
+			painting.value = true;
+			drawing(e);
+		}
 	}
 };
+
 const finishedPaintingRect = (e) => {
-	if(rectangleMode.value==true){
-		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-		painting.value = false;
-		canvas2.value.style.left = "-200%";
-		drawRect(newMouseX,newMouseY,ctx1);
+	if(isRasterMode.value){
+		if(rectangleMode.value==true){
+			const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+			const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+			painting.value = false;
+			canvas2.value.style.left = "-200%";
+			drawRect(newMouseX,newMouseY,ctx1);
+		}
 	}
 }
 
 const finishedPainting = (e) => {
-	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-	if(rectangleMode.value==true){
-		painting.value = false;
-		canvas2.value.style.left = "-200%";
-		drawRect(newMouseX,newMouseY,ctx1);
-	}
-	else{
-		painting.value = false;
-		ctx1.value.beginPath();
+	if(isRasterMode.value){
+		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+		if(rectangleMode.value==true){
+			painting.value = false;
+			canvas2.value.style.left = "-200%";
+			drawRect(newMouseX,newMouseY,ctx1);
+		}
+		else{
+			painting.value = false;
+			ctx1.value.beginPath();
+		}
 	}
 };
 
 const drawRect = (toX,toY,context) => {
-	ctxBack.value.lineWidth = 2;
-	ctx1.value.lineWidth = 5;
-	ctx1.value.lineCap = "round";
-	ctx2.value.lineWidth = 5;
-	ctx2.value.lineCap = "round";
-	context.value.beginPath();
-	context.value.fillRect(rectStartX.value,rectStartY.value,toX-rectStartX.value,toY-rectStartY.value);
-	context.value.stroke();
+	if(isRasterMode.value){
+		ctxBack.value.lineWidth = 2;
+		ctx1.value.lineWidth = 5;
+		ctx1.value.lineCap = "round";
+		ctx2.value.lineWidth = 5;
+		ctx2.value.lineCap = "round";
+		context.value.beginPath();
+		context.value.fillRect(rectStartX.value,rectStartY.value,toX-rectStartX.value,toY-rectStartY.value);
+		context.value.stroke();
+	}
 }
+
 const drawLine = (toX,toY,context) => {
 	ctxBack.value.lineWidth = 2;
 	ctx1.value.lineWidth = 5;
@@ -139,21 +170,25 @@ const drawLine = (toX,toY,context) => {
 }
 
 const drawingRect = (e) => {
-	if (!painting.value) return;
-	if(rectangleMode.value==true){
-	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-		ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
-		drawRect(newMouseX,newMouseY,ctx2);
+	if(isRasterMode.value){
+		if (!painting.value) return;
+		if(rectangleMode.value==true){
+		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+			ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
+			drawRect(newMouseX,newMouseY,ctx2);
+		}
 	}
 }
 
 const drawing = (e) => {
-	if (!painting.value) return;
-	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-	if(rectangleMode.value==false){
-		drawLine(newMouseX,newMouseY,ctx1);
+	if(isRasterMode.value){
+		if (!painting.value) return;
+		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+		if(rectangleMode.value==false){
+			drawLine(newMouseX,newMouseY,ctx1);
+		}
 	}
 };
 
@@ -167,6 +202,7 @@ const writeFile = (e) => {
 	var data = { image: canvasContents, date: Date.now() };
 	tmpFile.value = JSON.stringify(data);
 }
+
 const loadFile = (e) => {
 	var data = JSON.parse(tmpFile.value);
 	var image = new Image();
@@ -180,6 +216,7 @@ const loadFile = (e) => {
 
 
 onMounted(() => {
+	// Init canvases
 	wrapper.value = document.getElementById("wrapper");
 	offsetX.value += wrapper.value.offsetLeft;
 	offsetY.value += wrapper.value.offsetTop;
@@ -203,6 +240,7 @@ onMounted(() => {
 	ctx2.value.strokeStyle = colors.value[0];
 	ctx2.value.fillStyle = colors.value[0];
 
+	// Resize canvases
 	canvas2.value.style.left = "-200%";
 
 	backCanvas.value.width = 500*scaleX.value/scaleY.value;
@@ -214,6 +252,7 @@ onMounted(() => {
 
 	scaleX.value = canvas1.value.getBoundingClientRect().width/canvas1.value.width;
 
+	// Draw grid
 	const step = 20;
 	const n = Math.floor(backCanvas.value.width/step)+1;
 	for (let i = 0; i < n; i++) {
