@@ -1,8 +1,9 @@
 <template>
+	<h2>{{ debugvar }}</h2>
 	<div id="wrapper">
 		<canvas id="backCanvas"></canvas>
-		<canvas @mousedown="startPainting" @mouseup="finishedPainting" @mousemove="drawing" id="canvas1"></canvas>
-		<canvas @mouseup="finishedPaintingRect" @mouseout="finishedPaintingRect" @mousemove="drawingRect" id="canvas2"></canvas>
+		<canvas @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove" @click="onClick" id="canvas1"></canvas>
+		<canvas @mouseup="onMouseUp" @mouseout="onMouseUp" @mousemove="onMouseMove" id="canvas2"></canvas>
 	</div>
 	<div class="toolbar">
 		<div class="color-picker">
@@ -20,8 +21,10 @@
 </template>
 
 <script setup lang="ts">
+import { getDefaultLibFileName } from 'typescript';
 import { ref, onMounted } from 'vue';
 const message = ref("Чертеж схемы");
+const mouseDown = ref(false);
 const painting = ref(false);
 const wrapper = ref(null);
 const backCanvas = ref(null);
@@ -50,6 +53,8 @@ const lastColor = ref("#000000");
 const rectStartX=ref(0);
 const rectStartY=ref(0);
 
+const debugvar = ref(0);
+
 class Point{
 	x = 0;
 	y = 0;
@@ -64,6 +69,8 @@ class VectRect{
 	point2 = new Point(0,0);
 	color = "#000000";
 	zOrder = 0;
+	isSelected = false;
+	selectedCornerID = -1;
 	setPoint1(point){
 		this.point1 = point;
 	}
@@ -82,7 +89,42 @@ class VectRect{
 		this.color = color;
 		this.zOrder = zOrder;
 	}
+	isPointInside(point){
+		var width = Math.abs(this.point1.x-this.point2.x);
+		var height = Math.abs(this.point1.y-this.point2.y);
+		var center = new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2);
+		return Math.abs(point.x-center.x)<=width/2 && Math.abs(point.y-center.y)<=height/2;
+	}
+	drawPoints(){
+		var center = new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2);
+		drawPoint(new Point(this.point1.x,this.point1.y), this.selectedCornerID == 0 ? "#ff0000" : "#000000");
+		drawPoint(new Point(this.point1.x,this.point2.y), this.selectedCornerID == 2 ? "#ff0000" : "#000000");
+		drawPoint(new Point(this.point2.x,this.point1.y), this.selectedCornerID == 1 ? "#ff0000" : "#000000");
+		drawPoint(new Point(this.point2.x,this.point2.y), this.selectedCornerID == 3 ? "#ff0000" : "#000000");
+		drawPoint(center,"#000000");
+	}
+	move(point){
+		var width = Math.abs(this.point1.x-this.point2.x);
+		var height = Math.abs(this.point1.y-this.point2.y);
+		this.point1.x = point.x-width/2;
+		this.point1.y = point.y-height/2;
+		this.point2.x = point.x+width/2;
+		this.point2.y = point.y+height/2;
+	}
+	checkCorner(point){
+		var isCornerX = -1;
+		var isCornerY = -1;
+		if(Math.abs(point.x-this.point1.x)<10)isCornerX =0;
+		if(Math.abs(point.x-this.point2.x)<10)isCornerX =1;
+		if(Math.abs(point.y-this.point1.y)<10)isCornerY =0;
+		if(Math.abs(point.y-this.point2.y)<10)isCornerY =2;
+		this.selectedCornerID = isCornerX+isCornerY;
+		debugvar=this.selectedCornerID;
+		return this.selectedCornerID;
+	}
 }
+
+var selectedVectRect = new VectRect(new Point(0,0),new Point(0,0),"#ffffff",0);
 
 class VectRects{
 	public vectRects;
@@ -92,8 +134,18 @@ class VectRects{
 	newVectRect(point1,point2,color,zOrder){
 		let vr = new VectRect(point1,point2,color,zOrder);
 		this.vectRects.push(vr);
+		this.vectRects.sort(function(a:any,b:any){return a.zOrder - b.zOrder});
+	}	
+	redrawVectRects(){
+		clearCanvas();
+		for(var i = 0; i < this.vectRects.length; i++){
+			drawVectRect(this.vectRects.at(i));
+			if(this.vectRects.at(i).isSelected==true)this.vectRects.at(i).drawPoints();
+		}
 	}
 }
+
+var vrLayer = new VectRects();
 
 const drawVectRect = (vectRect) => {
 	changeColor(vectRect.color);
@@ -141,13 +193,13 @@ const toggleRectangleMode = () => {
 
 const toggleEraserMode = () => {
 	if(isRasterMode.value){
+		eraserMode.value = !eraserMode.value;
 		eraserModeText.value = eraserMode.value == true?'🔲':'🔳';
 		ctx1.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
 		ctx1.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
 		ctx2.value.strokeStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
 		ctx2.value.fillStyle = eraserMode.value == true?"#FFFFFF":lastColor.value;
 		ctx1.value.globalCompositeOperation = eraserMode.value == true?"destination-out":"source-over";
-		eraserMode.value = !eraserMode.value;
 	}
 };
 
@@ -158,56 +210,6 @@ const clearCanvas = () => {
 	}
 	else{
 		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
-	}
-};
-
-const startPaintingRect = (e) => {
-	if(isRasterMode.value){
-		if(rectangleMode.value==true){
-			rectStartX.value = (e.clientX - offsetX.value)/scaleX.value;
-			rectStartY.value = (e.clientY - offsetY.value)/scaleY.value;
-			ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
-			canvas2.value.style.left = "0%";
-			painting.value = true;
-		}
-	}
-}
-
-const startPainting = (e) => {
-	if(isRasterMode.value){
-		startPaintingRect(e);
-		if(rectangleMode.value==false){
-			painting.value = true;
-			drawing(e);
-		}
-	}
-};
-
-const finishedPaintingRect = (e) => {
-	if(isRasterMode.value){
-		if(rectangleMode.value==true){
-			const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-			const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-			painting.value = false;
-			canvas2.value.style.left = "-200%";
-			drawRect(newMouseX,newMouseY,ctx1);
-		}
-	}
-}
-
-const finishedPainting = (e) => {
-	if(isRasterMode.value){
-		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-		if(rectangleMode.value==true){
-			painting.value = false;
-			canvas2.value.style.left = "-200%";
-			drawRect(newMouseX,newMouseY,ctx1);
-		}
-		else{
-			painting.value = false;
-			ctx1.value.beginPath();
-		}
 	}
 };
 
@@ -237,28 +239,12 @@ const drawLine = (toX,toY,context) => {
 	context.value.moveTo(toX, toY);
 }
 
-const drawingRect = (e) => {
-	if(isRasterMode.value){
-		if (!painting.value) return;
-		if(rectangleMode.value==true){
-		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-			ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
-			drawRect(newMouseX,newMouseY,ctx2);
-		}
-	}
+const drawPoint = (point,color) => {
+	ctx1.value.fillStyle = color;
+	ctx1.value.beginPath();
+	ctx1.value.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+	ctx1.value.fill();
 }
-
-const drawing = (e) => {
-	if(isRasterMode.value){
-		if (!painting.value) return;
-		const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
-		const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
-		if(rectangleMode.value==false){
-			drawLine(newMouseX,newMouseY,ctx1);
-		}
-	}
-};
 
 // const testUser = (e) => {
 
@@ -279,6 +265,111 @@ const loadFile = (e) => {
 		ctx1.value.drawImage(image, 0, 0); // draw the new image to the screen
 	}
 	image.src = data.image; // data.image contains the data URL
+}
+
+const rasterModePaintStart = (e) =>{
+	if(rectangleMode.value==true){
+		rectStartX.value = (e.clientX - offsetX.value)/scaleX.value;
+		rectStartY.value = (e.clientY - offsetY.value)/scaleY.value;
+		ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
+		canvas2.value.style.left = "0%";
+		painting.value = true;
+	}
+	else{
+		painting.value = true;
+		rasterModePainting(e);
+	}
+}
+
+const rasterModePaintFinish = (e) => {
+	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+	if(rectangleMode.value==true){
+		painting.value = false;
+		canvas2.value.style.left = "-200%";
+		drawRect(newMouseX,newMouseY,ctx1);
+	}
+	else{
+		painting.value = false;
+		ctx1.value.beginPath();
+	}
+}
+
+const rasterModePainting = (e) => {
+	if (!painting.value) return;
+	const newMouseX = (e.clientX - offsetX.value)/scaleX.value;
+	const newMouseY = (e.clientY - offsetY.value)/scaleY.value;
+	if(rectangleMode.value==true){
+		ctx2.value.clearRect(0,0,canvas2.value.width,canvas2.value.height);
+		drawRect(newMouseX,newMouseY,ctx2);
+	}
+	else{
+		drawLine(newMouseX,newMouseY,ctx1);
+	}
+}
+
+const onMouseDown = (e) => {
+	mouseDown.value = true;
+	if(isRasterMode.value){
+		rasterModePaintStart(e);
+	}
+	else{
+		var mouseLocation = 
+			new Point(
+				(e.clientX - offsetX.value)/scaleX.value,
+				(e.clientY - offsetY.value)/scaleY.value
+				);
+		for(var i = vrLayer.vectRects.length-1; i >= 0; i--){
+			if(vrLayer.vectRects.at(i).isPointInside(mouseLocation)==true)
+			{
+				if(vrLayer.vectRects.at(i)!= selectedVectRect){
+					vrLayer.vectRects.forEach(vr => {
+						vr.isSelected=false;
+					});
+					selectedVectRect = vrLayer.vectRects.at(i);
+					vrLayer.vectRects.at(i).isSelected=true;
+					vrLayer.redrawVectRects();
+				}
+				else if(selectedVectRect.checkCorner(mouseLocation)>=0){
+					vrLayer.redrawVectRects();
+				}
+				break;
+			}
+		}
+	}
+};
+
+const onMouseUp = (e) => {
+	mouseDown.value = false;
+	if(isRasterMode.value){
+		rasterModePaintFinish(e);
+	}
+	else{
+		selectedVectRect = new VectRect(new Point(0,0),new Point(0,0),"#ffffff",0);
+		vrLayer.redrawVectRects();
+	}
+}
+
+const onMouseMove = (e) => {
+	if(isRasterMode.value){
+		rasterModePainting(e);
+	}
+	else{
+		var mouseLocation = 
+			new Point(
+				(e.clientX - offsetX.value)/scaleX.value,
+				(e.clientY - offsetY.value)/scaleY.value
+				);
+		if(mouseDown.value==true){
+			vrLayer.redrawVectRects();
+			selectedVectRect.move(mouseLocation);
+		}
+	}
+};
+
+const onClick = (e) => {
+	if(!isRasterMode.value){
+	}
 }
 
 
@@ -343,15 +434,12 @@ onMounted(() => {
 		ctxBack.value.beginPath();
 	}
 
-	let vrs = new VectRects();
+	vrLayer = new VectRects();
 
-	vrs.newVectRect(new Point(20,20),new Point(100,100),"#ff00ff",0);
-	vrs.newVectRect(new Point(40,40),new Point(140,140),"#ffff00",1);
+	vrLayer.newVectRect(new Point(520,220),new Point(600,300),"#ff00ff",0);
+	vrLayer.newVectRect(new Point(560,240),new Point(660,340),"#ffff00",1);
 
-	clearCanvas();
-	vrs.vectRects.forEach(vr => {
-		drawVectRect(vr);
-	});
+	vrLayer.redrawVectRects();
 });
 </script>
 
