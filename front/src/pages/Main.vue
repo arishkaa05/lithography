@@ -1,13 +1,13 @@
 <template>
-	<h2>{{ debugvar }}</h2>
+	<!-- <h2>{{ debugvar }}</h2> -->
 	<div id="wrapper">
 		<canvas id="backCanvas"></canvas>
-		<canvas @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove" @click="onClick" id="canvas1"></canvas>
+		<canvas @mousedown="onMouseDown" @mouseup="onMouseUp" @mouseout="onMouseOut" @mousemove="onMouseMove" @click="onClick" id="canvas1"></canvas>
 		<canvas @mouseup="onMouseUp" @mouseout="onMouseUp" @mousemove="onMouseMove" id="canvas2"></canvas>
 	</div>
 	<div class="toolbar">
 		<div class="color-picker">
-			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="changeColor(color)"></div>
+			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>
 		</div>
 		<div class="tool-picker">
 			<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
@@ -15,6 +15,12 @@
 			<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
 			<a class="tool-button" @click.prevent="writeFile">📥</a>
 			<a class="tool-button" @click.prevent="loadFile">📤</a>
+		</div>
+		<div class="tool-picker">
+			<a class="tool-button" @click.prevent="loadFile">В самый низ</a>
+			<a class="tool-button" @click.prevent="loadFile">Вниз</a>
+			<a class="tool-button" @click.prevent="loadFile">Вверх</a>
+			<a class="tool-button" @click.prevent="moveToTop">В самый верх</a>
 		</div>
 	</div>
 	<!-- <a class="test-user-button" @click.prevent="testUser">LONG BUTTON</a> -->
@@ -83,19 +89,19 @@ class VectRect{
 	setZOrder(zOrder){
 		this.zOrder = zOrder;
 	}
-	constructor(point1,point2,color,zOrder){
+	constructor(point1:Point,point2:Point,color,zOrder){
 		this.point1 = point1;
 		this.point2 = point2;
 		this.color = color;
 		this.zOrder = zOrder;
 	}
-	isPointInside(point){
+	isPointInside(point:Point){
 		var width = Math.abs(this.point1.x-this.point2.x);
 		var height = Math.abs(this.point1.y-this.point2.y);
 		var center = new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2);
 		return Math.abs(point.x-center.x)<=width/2 && Math.abs(point.y-center.y)<=height/2;
 	}
-	drawPoints(){
+	drawCorners(){
 		var center = new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2);
 		drawPoint(new Point(this.point1.x,this.point1.y), this.selectedCornerID == 0 ? "#ff0000" : "#000000");
 		drawPoint(new Point(this.point1.x,this.point2.y), this.selectedCornerID == 2 ? "#ff0000" : "#000000");
@@ -111,43 +117,74 @@ class VectRect{
 		this.point2.x = point.x+width/2;
 		this.point2.y = point.y+height/2;
 	}
-	checkCorner(point){
+	moveCorner(point:Point){
+		this.point1.x = (this.selectedCornerID % 2 == 0) ? point.x : this.point1.x;
+		this.point1.y = (Math.floor(this.selectedCornerID / 2) == 0) ? point.y : this.point1.y;
+		this.point2.x = (this.selectedCornerID % 2 == 1) ? point.x : this.point2.x;
+		this.point2.y = (Math.floor(this.selectedCornerID / 2) == 1) ? point.y : this.point2.y;
+	}
+	checkCorner(point:Point){
 		var isCornerX = -1;
 		var isCornerY = -1;
-		if(Math.abs(point.x-this.point1.x)<10)isCornerX =0;
-		if(Math.abs(point.x-this.point2.x)<10)isCornerX =1;
-		if(Math.abs(point.y-this.point1.y)<10)isCornerY =0;
-		if(Math.abs(point.y-this.point2.y)<10)isCornerY =2;
+		var r= 10;
+		var lowerBound = Math.min(this.point1.y,this.point2.y)-r/2;
+		var upperBound = Math.max(this.point1.y,this.point2.y)+r/2;
+		var leftBound = Math.min(this.point1.x,this.point2.x)-r/2;
+		var rightBound = Math.max(this.point1.x,this.point2.x)+r/2;
+		if(point.x > leftBound && point.x < rightBound && point.y > lowerBound && point.y < upperBound){
+			if(Math.abs(point.x-this.point1.x)<r)isCornerX =0;
+			if(Math.abs(point.x-this.point2.x)<r)isCornerX =1;
+			if(Math.abs(point.y-this.point1.y)<r)isCornerY =0;
+			if(Math.abs(point.y-this.point2.y)<r)isCornerY =2;
+		}
 		this.selectedCornerID = isCornerX+isCornerY;
-		debugvar=this.selectedCornerID;
 		return this.selectedCornerID;
 	}
 }
 
-var selectedVectRect = new VectRect(new Point(0,0),new Point(0,0),"#ffffff",0);
+const EMPTY_VECT_RECT = new VectRect(new Point(-500,-500),new Point(-500,-500),"#ffffff",0);
+var selectedVectRect = EMPTY_VECT_RECT;
+var selectedVectRectID = 0;
 
 class VectRects{
 	public vectRects;
 	constructor(){
 		this.vectRects = [];
 	}
+	sort(){
+		this.vectRects.sort(function(a:any,b:any){return a.zOrder - b.zOrder});
+	}
 	newVectRect(point1,point2,color,zOrder){
 		let vr = new VectRect(point1,point2,color,zOrder);
 		this.vectRects.push(vr);
-		this.vectRects.sort(function(a:any,b:any){return a.zOrder - b.zOrder});
-	}	
+		this.sort();
+	}
 	redrawVectRects(){
 		clearCanvas();
 		for(var i = 0; i < this.vectRects.length; i++){
 			drawVectRect(this.vectRects.at(i));
-			if(this.vectRects.at(i).isSelected==true)this.vectRects.at(i).drawPoints();
+		}
+	}
+	selectVectRect(i:number){
+		if(this.vectRects.length>i && i >= 0){
+			this.vectRects.at(selectedVectRectID).isSelected = false;
+			selectedVectRectID = i;
+			debugvar.value=selectedVectRectID;
+			this.vectRects.at(selectedVectRectID).isSelected = true;
+			selectedVectRect = this.vectRects.at(selectedVectRectID);
+		}
+	}
+	
+	updateZOrder(){
+		for(var i=0;i<this.vectRects.length;i++){
+			this.vectRects.at(i).zOrder=i;
 		}
 	}
 }
 
 var vrLayer = new VectRects();
 
-const drawVectRect = (vectRect) => {
+const drawVectRect = (vectRect:VectRect) => {
 	changeColor(vectRect.color);
 	ctxBack.value.lineWidth = 2;
 	ctx1.value.lineWidth = 5;
@@ -159,6 +196,7 @@ const drawVectRect = (vectRect) => {
 	ctx1.value.beginPath();
 	ctx1.value.fillRect(vectRect.point1.x,vectRect.point1.y,width,height);
 	ctx1.value.stroke();
+	if(vectRect.isSelected==true)vectRect.drawCorners();
 	
 }
 
@@ -167,22 +205,6 @@ enum drawModeShape{
 	square = "SQUARE",
 	line = "LINE"
 }
-
-const changeColor = (color) => {
-	if(isRasterMode.value){
-		if(eraserMode.value==false){
-			ctx1.value.strokeStyle = color;
-			ctx1.value.fillStyle = color;
-			ctx2.value.strokeStyle = color;
-			ctx2.value.fillStyle = color;
-		}
-	}
-	else{
-		ctx1.value.strokeStyle = color;
-		ctx1.value.fillStyle = color;
-	}
-	lastColor.value = color;
-};
 
 const toggleRectangleMode = () => {
 	if(isRasterMode.value){
@@ -202,6 +224,36 @@ const toggleEraserMode = () => {
 		ctx1.value.globalCompositeOperation = eraserMode.value == true?"destination-out":"source-over";
 	}
 };
+
+const changeColor = (color) => {
+	if(isRasterMode.value){
+		if(eraserMode.value==false){
+			ctx1.value.strokeStyle = color;
+			ctx1.value.fillStyle = color;
+			ctx2.value.strokeStyle = color;
+			ctx2.value.fillStyle = color;
+		}
+	}
+	else{
+		ctx1.value.strokeStyle = color;
+		ctx1.value.fillStyle = color;
+	}
+	lastColor.value = color;
+};
+
+const selectColor = (color) => {
+	if(isRasterMode.value){
+		changeColor(color);
+	}
+	else{
+		ctx1.value.strokeStyle = color;
+		ctx1.value.fillStyle = color;
+		selectedVectRect.color = color;
+		vrLayer.vectRects.at(selectedVectRectID).color=color;
+		vrLayer.redrawVectRects();
+	}
+	lastColor.value = color;
+}
 
 const clearCanvas = () => {
 	if(isRasterMode.value){
@@ -320,17 +372,17 @@ const onMouseDown = (e) => {
 				(e.clientY - offsetY.value)/scaleY.value
 				);
 		for(var i = vrLayer.vectRects.length-1; i >= 0; i--){
+			if(vrLayer.vectRects.at(i).checkCorner(mouseLocation)>=0){
+				if(vrLayer.vectRects.at(i)!= selectedVectRect){
+					vrLayer.selectVectRect(i);
+				}
+				vrLayer.redrawVectRects();
+				break;
+			}
 			if(vrLayer.vectRects.at(i).isPointInside(mouseLocation)==true)
 			{
 				if(vrLayer.vectRects.at(i)!= selectedVectRect){
-					vrLayer.vectRects.forEach(vr => {
-						vr.isSelected=false;
-					});
-					selectedVectRect = vrLayer.vectRects.at(i);
-					vrLayer.vectRects.at(i).isSelected=true;
-					vrLayer.redrawVectRects();
-				}
-				else if(selectedVectRect.checkCorner(mouseLocation)>=0){
+					vrLayer.selectVectRect(i);
 					vrLayer.redrawVectRects();
 				}
 				break;
@@ -345,7 +397,8 @@ const onMouseUp = (e) => {
 		rasterModePaintFinish(e);
 	}
 	else{
-		selectedVectRect = new VectRect(new Point(0,0),new Point(0,0),"#ffffff",0);
+		selectedVectRect.selectedCornerID=-1;
+		selectedVectRect = EMPTY_VECT_RECT;
 		vrLayer.redrawVectRects();
 	}
 }
@@ -361,11 +414,47 @@ const onMouseMove = (e) => {
 				(e.clientY - offsetY.value)/scaleY.value
 				);
 		if(mouseDown.value==true){
+			if(selectedVectRect!=EMPTY_VECT_RECT){
+				if(selectedVectRect.selectedCornerID>=0){
+					selectedVectRect.moveCorner(mouseLocation);
+				}
+				else{
+					selectedVectRect.move(mouseLocation);
+				}
+			}
 			vrLayer.redrawVectRects();
-			selectedVectRect.move(mouseLocation);
 		}
 	}
 };
+
+const onMouseOut = (e) => {
+	mouseDown.value =false;
+	painting.value =false;
+	selectedVectRect.selectedCornerID=-1;
+	selectedVectRect = EMPTY_VECT_RECT;
+	vrLayer.redrawVectRects();
+}
+
+const moveArrayElement = (from, to)=> {
+	let numberOfDeletedElm = 1;
+	const elm = vrLayer.vectRects.splice(from, numberOfDeletedElm)[0];
+	numberOfDeletedElm = 0;
+	vrLayer.vectRects.splice(to, numberOfDeletedElm, elm);
+	
+	vrLayer.updateZOrder();
+	selectedVectRectID = vrLayer.vectRects.length-1;
+	selectedVectRect = vrLayer.vectRects.at(vrLayer.vectRects.length-1);
+}
+
+
+const moveToTop = () => {
+	if(vrLayer.vectRects.length > selectedVectRectID && selectedVectRectID>=0)
+	{
+		selectedVectRect = vrLayer.vectRects.at(selectedVectRectID);
+		moveArrayElement(selectedVectRectID,vrLayer.vectRects.length-1);
+		vrLayer.redrawVectRects();
+	}
+}
 
 const onClick = (e) => {
 	if(!isRasterMode.value){
@@ -438,8 +527,13 @@ onMounted(() => {
 
 	vrLayer.newVectRect(new Point(520,220),new Point(600,300),"#ff00ff",0);
 	vrLayer.newVectRect(new Point(560,240),new Point(660,340),"#ffff00",1);
+	vrLayer.newVectRect(new Point(600,280),new Point(700,380),"#ff0000",2);
+	vrLayer.newVectRect(new Point(640,420),new Point(740,480),"#00ffff",3);
 
 	vrLayer.redrawVectRects();
+
+	
+	debugvar.value = -1;
 });
 </script>
 
@@ -485,18 +579,17 @@ canvas {
 
 /* tool button */
 .tool-button {
-	margin-left: 3px;
-	margin-right: 3px;
+	padding: 0 10px;
 	background-color: #fff;
 	border-width: 2px;
 	border-color: #333;
 	border-radius: 5px;
-	color: #fff;
+	color: #333;
 	text-align: center;
 	cursor: pointer;
 	text-decoration: none;
-	font-weight: bold;
-	font-size:24px;
+	font-weight:normal;
+	font-size:18px;
 }
 
 .tool-button:hover {
