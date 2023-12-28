@@ -1,34 +1,48 @@
 <template>
-	<!-- <h2>{{ debugvar }}</h2> -->
+	<div class="toolbar">
+		<!-- <h2>{{ debugvar }}</h2> -->
+		Цвет
+		<div class="color-picker">
+			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>
+		</div>
+		Схема
+		<div class="tool-picker">
+			<!-- <a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
+			<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
+			<a class="tool-button" @click.prevent="clearCanvas">🗑️</a> -->
+			<a class="tool-button" @click.prevent="writeFile">Сохранить</a>
+			<a class="tool-button" @click.prevent="loadFile">Загрузить</a>
+		</div>
+		Прямоугольник
+		<div class="tool-picker">
+			<p>{{ point1CoordText }}</p>
+			<p>{{ point2CoordText }}</p>
+			<a class="tool-button" @click.prevent="onCreateVectRect">Создать</a>
+			<a class="tool-button" @click.prevent="onDeleteVectRect">Удалить</a>
+		</div>
+		Слои
+		<div class="tool-picker">
+			<a class="tool-button" @click.prevent="moveToTop">В самый верх</a>
+			<a class="tool-button" @click.prevent="moveUp">Вверх</a>
+			<a class="tool-button" @click.prevent="moveDown">Вниз</a>
+			<a class="tool-button" @click.prevent="moveToBottom">В самый низ</a>
+		</div>
+	</div>
 	<div id="wrapper">
 		<canvas id="backCanvas"></canvas>
 		<canvas @mousedown="onMouseDown" @mouseup="onMouseUp" @mouseout="onMouseOut" @mousemove="onMouseMove" @click="onClick" id="canvas1"></canvas>
 		<canvas @mouseup="onMouseUp" @mouseout="onMouseUp" @mousemove="onMouseMove" id="canvas2"></canvas>
 	</div>
-	<div class="toolbar">
-		<div class="color-picker">
-			<div v-for="color in colors" class="color-box" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>
-		</div>
-		<div class="tool-picker">
-			<a class="tool-button" @click.prevent="toggleRectangleMode">{{rectangleModeText}}</a>
-			<a class="tool-button" @click.prevent="toggleEraserMode">{{eraserModeText}}</a>
-			<a class="tool-button" @click.prevent="clearCanvas">🗑️</a>
-			<a class="tool-button" @click.prevent="writeFile">📥</a>
-			<a class="tool-button" @click.prevent="loadFile">📤</a>
-		</div>
-		<div class="tool-picker">
-			<a class="tool-button" @click.prevent="loadFile">В самый низ</a>
-			<a class="tool-button" @click.prevent="loadFile">Вниз</a>
-			<a class="tool-button" @click.prevent="loadFile">Вверх</a>
-			<a class="tool-button" @click.prevent="moveToTop">В самый верх</a>
-		</div>
-	</div>
 	<!-- <a class="test-user-button" @click.prevent="testUser">LONG BUTTON</a> -->
 </template>
 
 <script setup lang="ts">
-import { getDefaultLibFileName } from 'typescript';
+//#region Imports
+import { JsxEmit, getDefaultLibFileName } from 'typescript';
 import { ref, onMounted } from 'vue';
+//#endregion
+
+//#region Global variables
 const message = ref("Чертеж схемы");
 const mouseDown = ref(false);
 const painting = ref(false);
@@ -59,7 +73,15 @@ const lastColor = ref("#000000");
 const rectStartX=ref(0);
 const rectStartY=ref(0);
 
-const debugvar = ref(0);
+const point1CoordText = ref("x1: y1: ");
+const point2CoordText = ref("x2: y2: ");
+
+const isCreateMode=ref(false);
+
+const debugvar = ref("a");
+//#endregion
+
+//#region 2D Vector Point
 
 class Point{
 	x = 0;
@@ -69,6 +91,9 @@ class Point{
 		this.y=y_;
 	}
 }
+//#endregion
+
+//#region 2D Vector Rectangle class
 
 class VectRect{
 	point1 = new Point(0,0);
@@ -102,12 +127,21 @@ class VectRect{
 		return Math.abs(point.x-center.x)<=width/2 && Math.abs(point.y-center.y)<=height/2;
 	}
 	drawCorners(){
-		var center = new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2);
-		drawPoint(new Point(this.point1.x,this.point1.y), this.selectedCornerID == 0 ? "#ff0000" : "#000000");
-		drawPoint(new Point(this.point1.x,this.point2.y), this.selectedCornerID == 2 ? "#ff0000" : "#000000");
-		drawPoint(new Point(this.point2.x,this.point1.y), this.selectedCornerID == 1 ? "#ff0000" : "#000000");
-		drawPoint(new Point(this.point2.x,this.point2.y), this.selectedCornerID == 3 ? "#ff0000" : "#000000");
-		drawPoint(center,"#000000");
+		if(selectedVectRectID>=0 && this.point1.x +  this.point2.x > -1000)
+		{
+			point1CoordText.value = "x1: "+ Math.min(this.point1.x,this.point2.x).toFixed(0) + " y1: " + Math.min(this.point1.y,this.point2.y).toFixed(0);
+			point2CoordText.value = "x2: "+ Math.max(this.point1.x,this.point2.x).toFixed(0) + " y2: " + Math.max(this.point1.y,this.point2.y).toFixed(0);
+		}
+		var corners = [];
+		corners.push(new Point(this.point1.x,this.point1.y));
+		corners.push(new Point(this.point2.x,this.point1.y));
+		corners.push(new Point(this.point1.x,this.point2.y));
+		corners.push(new Point(this.point2.x,this.point2.y));
+		corners.push(new Point((this.point1.x+this.point2.x)/2,(this.point1.y+this.point2.y)/2));
+		for(var i=0;i<corners.length;i++){
+			drawPoint(corners.at(i),(this.selectedCornerID == i && i!=4) ? "#ff0000" : "#000000",4);
+			drawPoint(corners.at(i),"#ffffff",3);
+		}
 	}
 	move(point){
 		var width = Math.abs(this.point1.x-this.point2.x);
@@ -142,9 +176,13 @@ class VectRect{
 	}
 }
 
+//#endregion
+
 const EMPTY_VECT_RECT = new VectRect(new Point(-500,-500),new Point(-500,-500),"#ffffff",0);
 var selectedVectRect = EMPTY_VECT_RECT;
-var selectedVectRectID = 0;
+var selectedVectRectID = -1;
+
+//#region Array of 2D Vector Rectangles
 
 class VectRects{
 	public vectRects;
@@ -169,18 +207,24 @@ class VectRects{
 		if(this.vectRects.length>i && i >= 0){
 			this.vectRects.at(selectedVectRectID).isSelected = false;
 			selectedVectRectID = i;
-			debugvar.value=selectedVectRectID;
 			this.vectRects.at(selectedVectRectID).isSelected = true;
 			selectedVectRect = this.vectRects.at(selectedVectRectID);
 		}
+		if(i==-1){
+			this.vectRects.at(selectedVectRectID).isSelected = false;
+			selectedVectRectID=-1;
+			selectedVectRect=EMPTY_VECT_RECT;
+		}
 	}
-	
+
 	updateZOrder(){
 		for(var i=0;i<this.vectRects.length;i++){
 			this.vectRects.at(i).zOrder=i;
 		}
 	}
 }
+
+//#endregion
 
 var vrLayer = new VectRects();
 
@@ -197,14 +241,14 @@ const drawVectRect = (vectRect:VectRect) => {
 	ctx1.value.fillRect(vectRect.point1.x,vectRect.point1.y,width,height);
 	ctx1.value.stroke();
 	if(vectRect.isSelected==true)vectRect.drawCorners();
-	
-}
 
+}
 enum drawModeShape{
 	brush = "BRUSH",
 	square = "SQUARE",
 	line = "LINE"
 }
+//#region Old Button Events
 
 const toggleRectangleMode = () => {
 	if(isRasterMode.value){
@@ -224,6 +268,7 @@ const toggleEraserMode = () => {
 		ctx1.value.globalCompositeOperation = eraserMode.value == true?"destination-out":"source-over";
 	}
 };
+//#endregion
 
 const changeColor = (color) => {
 	if(isRasterMode.value){
@@ -240,20 +285,6 @@ const changeColor = (color) => {
 	}
 	lastColor.value = color;
 };
-
-const selectColor = (color) => {
-	if(isRasterMode.value){
-		changeColor(color);
-	}
-	else{
-		ctx1.value.strokeStyle = color;
-		ctx1.value.fillStyle = color;
-		selectedVectRect.color = color;
-		vrLayer.vectRects.at(selectedVectRectID).color=color;
-		vrLayer.redrawVectRects();
-	}
-	lastColor.value = color;
-}
 
 const clearCanvas = () => {
 	if(isRasterMode.value){
@@ -291,33 +322,14 @@ const drawLine = (toX,toY,context) => {
 	context.value.moveTo(toX, toY);
 }
 
-const drawPoint = (point,color) => {
+const drawPoint = (point,color,radius) => {
 	ctx1.value.fillStyle = color;
 	ctx1.value.beginPath();
-	ctx1.value.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+	ctx1.value.arc(point.x, point.y, radius, 0, 2 * Math.PI);
 	ctx1.value.fill();
 }
 
-// const testUser = (e) => {
 
-// }
-
-const tmpFile = ref("");
-const writeFile = (e) => {
-	var canvasContents = canvas1.value.toDataURL(); // a data URL of the current canvas image
-	var data = { image: canvasContents, date: Date.now() };
-	tmpFile.value = JSON.stringify(data);
-}
-
-const loadFile = (e) => {
-	var data = JSON.parse(tmpFile.value);
-	var image = new Image();
-	image.onload = function () {
-		ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
-		ctx1.value.drawImage(image, 0, 0); // draw the new image to the screen
-	}
-	image.src = data.image; // data.image contains the data URL
-}
 
 const rasterModePaintStart = (e) =>{
 	if(rectangleMode.value==true){
@@ -360,33 +372,142 @@ const rasterModePainting = (e) => {
 	}
 }
 
+//#region File Handling
+
+// const testUser = (e) => {
+
+// }
+// import * as fs from 'fs';
+// fs.writeFile("test.txt", jsonData, function(err) {
+//     if (err) {
+//         console.log(err);
+//     }
+// });
+
+const tmpFile = ref("");
+const writeFile = (e) => {
+	if(isRasterMode.value){
+		var canvasContents = canvas1.value.toDataURL(); // a data URL of the current canvas image
+		var data = { image: canvasContents, date: Date.now() };
+		tmpFile.value = JSON.stringify(data);
+	}
+	else{
+		vrLayer.selectVectRect(-1);
+		tmpFile.value = JSON.stringify(vrLayer.vectRects);
+        window.localStorage.setItem('test', tmpFile.value);
+		const blob = new Blob([tmpFile.value], {type: 'text/plain'});
+    	const ev = document.createEvent('MouseEvents'),a = document.createElement('a');
+    	a.download = "test.json";
+    	a.href = window.URL.createObjectURL(blob);
+    	a.dataset.downloadurl = ['text/json', a.download, a.href].join(':');
+		ev.initEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+		a.dispatchEvent(ev);
+		vrLayer.redrawVectRects;
+	}
+}
+
+// import { useFileDialog } from '@vueuse/core'
+
+// const { files, open, reset, onChange } = useFileDialog({
+//   accept: 'image/*', // Set to accept only image files
+//   directory: true, // Select directories instead of files if set true
+// })
+// onChange((files) => {
+//   /** do something with files */
+// })
+
+const loadFile = (e) => {
+	if(isRasterMode.value){
+		var data = JSON.parse(tmpFile.value);
+		var image = new Image();
+		image.onload = function () {
+			ctx1.value.clearRect(0, 0, canvas1.value.width, canvas1.value.height);
+			ctx1.value.drawImage(image, 0, 0); // draw the new image to the screen
+		}
+		image.src = data.image; // data.image contains the data URL
+	}
+	else{
+		vrLayer.selectVectRect(-1);
+		var input = document.createElement('input');
+		input.type = 'file';
+		input.onchange = ev => { 
+			tmpFile.value = ev.target.files[0];
+			// setting up the reader
+			var reader = new FileReader();
+			reader.readAsText(tmpFile.value,'UTF-8');
+			// here we tell the reader what to do when it's done reading...
+			reader.onload = readerEvent => {
+				var content = readerEvent.target.result; // this is the content!
+				var newVectRects = JSON.parse(content);
+				vrLayer.vectRects = [];
+				for(var i=0;i<newVectRects.length;i++){
+					var vr = newVectRects.at(i);
+					vrLayer.newVectRect(vr.point1,vr.point2,vr.color,vr.zOrder);
+				}
+				vrLayer.redrawVectRects();
+			}
+		}
+		input.click();
+	}
+}
+//#endregion
+
+//#region Events
+
+const selectColor = (color) => {
+	if(isRasterMode.value){
+		changeColor(color);
+	}
+	else{
+		ctx1.value.strokeStyle = color;
+		ctx1.value.fillStyle = color;
+		selectedVectRect.color = color;
+		if(selectedVectRectID>=0)vrLayer.vectRects.at(selectedVectRectID).color=color;
+		vrLayer.redrawVectRects();
+	}
+	lastColor.value = color;
+}
+
 const onMouseDown = (e) => {
 	mouseDown.value = true;
 	if(isRasterMode.value){
 		rasterModePaintStart(e);
 	}
 	else{
-		var mouseLocation = 
+		var mouseLocation =
 			new Point(
 				(e.clientX - offsetX.value)/scaleX.value,
 				(e.clientY - offsetY.value)/scaleY.value
 				);
-		for(var i = vrLayer.vectRects.length-1; i >= 0; i--){
-			if(vrLayer.vectRects.at(i).checkCorner(mouseLocation)>=0){
-				if(vrLayer.vectRects.at(i)!= selectedVectRect){
-					vrLayer.selectVectRect(i);
+		if(isCreateMode.value!=true){
+
+			for(var i = vrLayer.vectRects.length-1; i >= 0; i--){
+				if(vrLayer.vectRects.at(i).checkCorner(mouseLocation)>=0){
+					if(vrLayer.vectRects.at(i)!= selectedVectRect){
+						vrLayer.selectVectRect(i);
+					}
+					vrLayer.redrawVectRects();
+					break;
 				}
-				vrLayer.redrawVectRects();
-				break;
-			}
-			if(vrLayer.vectRects.at(i).isPointInside(mouseLocation)==true)
-			{
-				if(vrLayer.vectRects.at(i)!= selectedVectRect){
-					vrLayer.selectVectRect(i);
+				if(vrLayer.vectRects.at(i).isPointInside(mouseLocation)==true)
+				{
+					if(vrLayer.vectRects.at(i)!= selectedVectRect){
+						vrLayer.selectVectRect(i);
+						vrLayer.redrawVectRects();
+					}
+					break;
+				}
+				else{
+					vrLayer.selectVectRect(-1);
 					vrLayer.redrawVectRects();
 				}
-				break;
 			}
+		}
+		else{
+			vrLayer.newVectRect(new Point(mouseLocation.x-20,mouseLocation.y-20),mouseLocation,lastColor.value,vrLayer.vectRects.length);
+			vrLayer.selectVectRect(vrLayer.vectRects.length-1);
+			vrLayer.redrawVectRects();
+			isCreateMode.value=false;
 		}
 	}
 };
@@ -408,7 +529,7 @@ const onMouseMove = (e) => {
 		rasterModePainting(e);
 	}
 	else{
-		var mouseLocation = 
+		var mouseLocation =
 			new Point(
 				(e.clientX - offsetX.value)/scaleX.value,
 				(e.clientY - offsetY.value)/scaleY.value
@@ -440,10 +561,14 @@ const moveArrayElement = (from, to)=> {
 	const elm = vrLayer.vectRects.splice(from, numberOfDeletedElm)[0];
 	numberOfDeletedElm = 0;
 	vrLayer.vectRects.splice(to, numberOfDeletedElm, elm);
-	
+
 	vrLayer.updateZOrder();
-	selectedVectRectID = vrLayer.vectRects.length-1;
-	selectedVectRect = vrLayer.vectRects.at(vrLayer.vectRects.length-1);
+}
+
+const removeArrayElement = (from)=> {
+	vrLayer.vectRects.splice(from, 1);
+
+	vrLayer.updateZOrder();
 }
 
 
@@ -452,6 +577,39 @@ const moveToTop = () => {
 	{
 		selectedVectRect = vrLayer.vectRects.at(selectedVectRectID);
 		moveArrayElement(selectedVectRectID,vrLayer.vectRects.length-1);
+		vrLayer.selectVectRect(vrLayer.vectRects.length-1);
+		vrLayer.redrawVectRects();
+	}
+}
+
+const moveToBottom = () => {
+	if(vrLayer.vectRects.length > selectedVectRectID && selectedVectRectID>=0)
+	{
+		selectedVectRect = vrLayer.vectRects.at(selectedVectRectID);
+		moveArrayElement(selectedVectRectID,0);
+		vrLayer.selectVectRect(0);
+		vrLayer.redrawVectRects();
+	}
+}
+
+const moveUp = () => {
+	if(vrLayer.vectRects.length > selectedVectRectID && selectedVectRectID>=0)
+	{
+		selectedVectRect = vrLayer.vectRects.at(selectedVectRectID);
+		var newID = selectedVectRectID+1 >= vrLayer.vectRects.length ? vrLayer.vectRects.length-1 : selectedVectRectID+1;
+		moveArrayElement(selectedVectRectID,newID);
+		vrLayer.selectVectRect(newID);
+		vrLayer.redrawVectRects();
+	}
+}
+
+const moveDown = () => {
+	if(vrLayer.vectRects.length > selectedVectRectID && selectedVectRectID>=0)
+	{
+		selectedVectRect = vrLayer.vectRects.at(selectedVectRectID);
+		var newID = selectedVectRectID-1 <= 0 ? 0 : selectedVectRectID-1;
+		moveArrayElement(selectedVectRectID,newID);
+		vrLayer.selectVectRect(newID);
 		vrLayer.redrawVectRects();
 	}
 }
@@ -461,11 +619,19 @@ const onClick = (e) => {
 	}
 }
 
+const onCreateVectRect = (e) => {
+	isCreateMode.value =true;
+}
 
+const onDeleteVectRect = (e) => {
+	removeArrayElement(selectedVectRectID);
+	vrLayer.selectVectRect(-1);
+	vrLayer.redrawVectRects();
+}
 
 onMounted(() => {
-	pixelsX.value = 1400;
-	pixelsY.value = 600;
+	pixelsX.value = 1200;
+	pixelsY.value = 650;
 
 	// Init canvases
 	wrapper.value = document.getElementById("wrapper");
@@ -513,7 +679,7 @@ onMounted(() => {
 		drawLine(step*i,pixelsX.value,ctxBack);
 		ctxBack.value.beginPath();
 	}
-	
+
 	const m = Math.floor(backCanvas.value.height/step)+1;
 	for (let i = 0; i < m; i++) {
 		ctxBack.value.setLineDash([i%5!=0?step/10:step/2]);
@@ -532,9 +698,10 @@ onMounted(() => {
 
 	vrLayer.redrawVectRects();
 
-	
-	debugvar.value = -1;
+
+	debugvar.value = "-1";
 });
+//#endregion
 </script>
 
 <style>
@@ -549,9 +716,12 @@ body {
 
 #app {
 	display:flex;
-	justify-content: center;
+	justify-content: left;
 	width:100%;
 	background-color: #fff;
+}
+#app>div{
+	display:flex;
 }
 
 h2 {
@@ -566,20 +736,29 @@ canvas {
 .color-box {
 	width: 20px;
 	height: 20px;
-	margin: 0 5px;
+	margin: 5px;
 	cursor: pointer;
 	border-radius: 50%;
+}
+
+.color-picker{
+	display:flex;
+	width:120px;
+	height:fit-content;
+	flex-wrap:wrap;
 }
 
 /* tool bar */
 .tool-picker {
 	display: flex;
-	margin-top: 1rem;
+	margin: 0 10px;
+	flex-direction: column;
 }
 
 /* tool button */
 .tool-button {
 	padding: 0 10px;
+	margin: 3px;
 	background-color: #fff;
 	border-width: 2px;
 	border-color: #333;
@@ -589,17 +768,13 @@ canvas {
 	cursor: pointer;
 	text-decoration: none;
 	font-weight:normal;
-	font-size:18px;
+	font-size:14px;
 }
 
 .tool-button:hover {
 	background-color: #eee;
 }
 
-.color-picker {
-	display: flex;
-	margin-top: 2rem;
-}
 /* clear button */
 .test-user-button {
 	margin: 1rem auto;
@@ -619,17 +794,18 @@ canvas {
 
 
 .toolbar {
-	justify-content: center;
+	justify-content: top;
 	display: flex;
-	margin:20px;
-	width:100%;
+	margin: 20px;
+	flex-direction: column;
+	width:200px;
 }
 
 #wrapper{
 	margin:20px;
 	position:relative;
-	width:1400px;
-	height:600px;
+	width:1200px;
+	height:650px;
 }
 #backCanvas{
 	position:absolute; top:0px; left:0px;
